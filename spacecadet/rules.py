@@ -158,8 +158,11 @@ class Game:
         if kind == "drain":
             self._on_drain(evt[1])
         elif kind == "plunger":
-            self.plunger_ball = evt[1]
-            evt[1].held = True
+            b = evt[1]
+            self.plunger_ball = b
+            b.held = True
+            b.pos.x, b.pos.y = 0.574, 0.054   # 吸附到发射杆停靠位(避免悬停半空)
+            b.vel.x = b.vel.y = 0.0
             if self.state == "play" and self.balls_in_play <= 1:
                 # 弱发射未出通道、球回落发射杆: 回到待发射状态,
                 # 否则蓄力逻辑(state==ready)永不生效, 游戏死锁

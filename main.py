@@ -301,9 +301,13 @@ for z in world.zones:
             position=(z.c.x, 0.004, z.c.y), texture=tex_color(ROLLOVER_DIM),
             shader=unlit_shader)
 
-plunger = Entity(parent=table_root, model=cyl(), scale=(0.05, 0.02, 0.05),
-                 position=(0.574, 0.012, 0.035), texture=tex_color(RED),
+plunger = Entity(parent=table_root, model=cyl(), scale=(0.030, 0.016, 0.030),
+                 position=(0.574, 0.009, 0.026), texture=tex_color(RED),
                  shader=unlit_shader)
+# 停靠位光环: 提示球的发射等待位置
+Entity(parent=table_root, model=cyl(), scale=(0.040, 0.004, 0.040),
+       position=(0.574, 0.003, 0.054), texture=tex_color((120, 60, 60)),
+       shader=unlit_shader)
 
 # ---- 球与拖尾
 ball_ents = {}
@@ -534,7 +538,7 @@ def update():
         if held_keys["space"] or held_keys["down arrow"]:
             charge["holding"] = True
             charge["v"] = min(1.0, charge["v"] + dt / C.PLUNGER_TMAX)
-            plunger.y = 0.012 - charge["v"] * 0.012
+            plunger.y = 0.010 - charge["v"] * 0.010
         elif charge["holding"]:
             speed = C.PLUNGER_VMIN + charge["v"] * (C.PLUNGER_VMAX - C.PLUNGER_VMIN)
             b = game.launch()
@@ -542,7 +546,16 @@ def update():
                 b.vel = P.Vec2(0, speed)
             charge["holding"] = False
             charge["v"] = 0.0
-            plunger.y = 0.012
+            plunger.y = 0.010
+        # 看门狗: 任何未知路径导致 play 状态下球停在发射杆, 1.5 秒后强制恢复
+        if game.state == "play":
+            charge["wd"] = charge.get("wd", 0.0) + dt
+            if charge["wd"] > 1.5:
+                game.state = "ready"
+                charge["wd"] = 0.0
+                print("[watchdog] play 状态下球在发射杆, 已恢复 ready")
+        else:
+            charge["wd"] = 0.0
     else:
         charge["v"] = 0.0
         charge["holding"] = False
