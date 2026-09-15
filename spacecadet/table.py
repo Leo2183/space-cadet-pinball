@@ -109,17 +109,22 @@ def build_table():
     w.add(m.hyperspace)
 
     # ---------- 下半场: 弹弓 / 分流墙 / 出球道 ----------
-    # 左: 分流墙(外=出球道, 内=再入航道) + 出球道斜底 + 弹弓
-    w.add(P.Wall((0.060, 0.345), (0.155, 0.088), name="divider_left"))
-    w.add(P.Wall((0.155, 0.088), (0.115, 0.028), name="outlane_cap_left"))
-    w.add(P.Wall((0.0, 0.045), (0.105, 0.015), name="outlane_floor_left"))
+    # 左: 分流墙(外=出球道, 内=再入航道) + 出球道斜底 + 弹弓。
+    # 两处防卡死设计:
+    # 1. 分流墙下端(0.138,0.150)不得伸到弹弓背墙末端(y=0.135)旁边——两者
+    #    下端若并排下探会形成"剪刀口", 内道球会楔死在中间;
+    # 2. 封口墙末端(0.125,0.045)与斜底末端(0.135,0.005)之间保持大于一球
+    #    直径的净空——两个墙端点靠太近会形成楔形死角。
+    w.add(P.Wall((0.060, 0.345), (0.138, 0.150), name="divider_left"))
+    w.add(P.Wall((0.138, 0.150), (0.125, 0.045), name="outlane_cap_left"))
+    w.add(P.Wall((0.0, 0.045), (0.135, 0.005), name="outlane_floor_left"))
     m.sling_left = P.Slingshot((0.145, 0.335), (0.205, 0.205), name="sling_left")
     w.add(m.sling_left)
     w.add(P.Wall((0.205, 0.205), (0.168, 0.135), name="sling_back_left"))
     # 右(镜像; 分流墙上端与航道壁留出球道入口)
-    w.add(P.Wall((0.505, 0.345), (0.445, 0.088), name="divider_right"))
-    w.add(P.Wall((0.445, 0.088), (0.485, 0.028), name="outlane_cap_right"))
-    w.add(P.Wall((0.548, 0.045), (0.443, 0.015), name="outlane_floor_right"))
+    w.add(P.Wall((0.505, 0.345), (0.462, 0.150), name="divider_right"))
+    w.add(P.Wall((0.462, 0.150), (0.475, 0.045), name="outlane_cap_right"))
+    w.add(P.Wall((0.548, 0.045), (0.465, 0.005), name="outlane_floor_right"))
     m.sling_right = P.Slingshot((0.455, 0.335), (0.395, 0.205), name="sling_right")
     w.add(m.sling_right)
     w.add(P.Wall((0.395, 0.205), (0.432, 0.135), name="sling_back_right"))

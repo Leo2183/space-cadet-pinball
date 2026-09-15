@@ -28,6 +28,46 @@ def count(events, kind):
 
 
 # ---------------------------------------------------------------- 用例
+def test_no_stuck_bottom_region():
+    """底部区域网格扫描: 任何位置慢速落下的球都不允许静止卡死在
+    出球道/墙角(弹板上与发射杆上停靠属正常)。"""
+    import math as _m
+    xs = [0.02 + 0.05 * i for i in range(12)]
+    spawns = [(x, y) for x in xs for y in (0.10, 0.16)]
+    for sx, sy in spawns:
+        m = T.build_table()
+        b = m.world.add_ball((sx, sy), (0.0, -0.2))
+        drained = False
+        dt = 1.0 / 60.0
+        for _ in range(int(5.0 * 60)):
+            evs = m.world.advance(dt)
+            if any(e[0] == "drain" for e in evs):
+                drained = True
+                break
+        if drained or b not in m.world.balls:
+            continue
+        p, v = b.pos, b.speed()
+        on_flipper = 0.17 <= p.x <= 0.43 and p.y >= 0.10
+        on_plunger = p.x > 0.545 and p.y < 0.11
+        back_in_play = p.y > 0.20 or v > 0.10
+        assert on_flipper or on_plunger or back_in_play, \
+            "球卡死在底部: 出生(%.2f,%.2f) 停在(%s) v=%.3f" % (sx, sy, p, v)
+
+
+def test_outlane_slow_ball_drains():
+    """回归: 慢速球滚进出球道底部也必须落沟, 不卡在墙端点死角里。"""
+    for spawn, vel, name in (
+        ((0.130, 0.100), (0.05, -0.30), "left"),
+        ((0.150, 0.060), (0.00, -0.10), "left_b"),
+        ((0.470, 0.100), (-0.05, -0.30), "right"),
+    ):
+        m = T.build_table()
+        b = m.world.add_ball(spawn, vel)
+        evs = run_world(m, 4.0)
+        assert any(e[0] == "drain" for e in evs), \
+            "%s 慢速球卡死在出球道底部: %s v=%.3f" % (name, b.pos, b.speed())
+
+
 def test_ball_settles_on_floor():
     m = T.build_table()
     m.world.add_ball((0.30, 0.40))
