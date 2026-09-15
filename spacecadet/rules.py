@@ -160,8 +160,10 @@ class Game:
         elif kind == "plunger":
             self.plunger_ball = evt[1]
             evt[1].held = True
-            if self.state == "play" and self.balls_in_play == 0:
-                pass
+            if self.state == "play" and self.balls_in_play <= 1:
+                # 弱发射未出通道、球回落发射杆: 回到待发射状态,
+                # 否则蓄力逻辑(state==ready)永不生效, 游戏死锁
+                self.state = "ready"
         elif kind == "bumper":
             self.add_score(C.SCORE_BUMPER)
             self.stats["bumpers"] += 1

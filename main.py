@@ -529,8 +529,8 @@ def update():
     meta.flipper_left.force_down = game.tilted
     meta.flipper_right.force_down = game.tilted
 
-    # 发射杆蓄力
-    if game.state == "ready" and game.plunger_ball is not None:
+    # 发射杆蓄力(不检查 state: 弱发射回落后球已在杆上, 任何状态都允许重新蓄力)
+    if game.plunger_ball is not None:
         if held_keys["space"] or held_keys["down arrow"]:
             charge["holding"] = True
             charge["v"] = min(1.0, charge["v"] + dt / C.PLUNGER_TMAX)
@@ -642,7 +642,7 @@ def update_hud():
 
 
 # ---------------------------------------------------------------- 冒烟测试
-smoke = {"t": 0.0, "launched": False, "done": False}
+smoke = {"t": 0.0, "phase": 1, "done": False}
 SMOKE_SHOTS = []
 
 
@@ -651,19 +651,29 @@ def smoke_update(dt):
         return
     smoke["t"] += dt
     t = smoke["t"]
-    if t > 0.6 and not smoke["launched"]:
+    # 阶段1: 弱发射(蓄力0.15s, 球出不了通道) —— 回归弱发射死锁修复
+    if 0.6 < t <= 0.75:
         held_keys["space"] = 1
-    if t > 1.7 and not smoke["launched"]:
+    elif 0.75 < t <= 1.0 and smoke["phase"] == 1:
         held_keys["space"] = 0
-        smoke["launched"] = True
-    if smoke["launched"]:
+        smoke["phase"] = 2
+    # 阶段2: 等球回落发射杆后满力发射
+    if 2.2 < t <= 3.4 and smoke["phase"] == 2:
+        held_keys["space"] = 1
+    elif t > 3.4 and smoke["phase"] == 2:
+        held_keys["space"] = 0
+        smoke["phase"] = 3
+        print("[smoke] weak-launch relaunch state=%s held=%s" %
+              (game.state, game.plunger_ball is not None))
+    if smoke["phase"] == 3:
         if random.random() < 0.04:
             held_keys["z"] = 1
         if random.random() < 0.04:
             held_keys["slash"] = 1
         if random.random() < 0.10:
             held_keys["z"] = held_keys["slash"] = 0
-    for ts, name in [(2.6, "smoke_play.png"), (4.4, "smoke_play2.png")]:
+    for ts, name in [(2.0, "smoke_weak.png"), (4.2, "smoke_play.png"),
+                     (5.6, "smoke_play2.png")]:
         if t >= ts and name not in SMOKE_SHOTS:
             SMOKE_SHOTS.append(name)
             try:
@@ -674,7 +684,7 @@ def smoke_update(dt):
                 print("[smoke] saved", os.path.join(HERE, name))
             except Exception as e:
                 print("[smoke] screenshot failed:", e)
-    if t > 5.5:
+    if t > 6.8:
         smoke["done"] = True
         print("[smoke] score=%s rank=%s balls=%d" %
               (game.score, game.rank_name()[0], len(world.balls)))

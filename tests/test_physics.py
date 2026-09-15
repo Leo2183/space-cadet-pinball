@@ -68,6 +68,38 @@ def test_outlane_slow_ball_drains():
             "%s 慢速球卡死在出球道底部: %s v=%.3f" % (name, b.pos, b.speed())
 
 
+def test_weak_launch_can_relaunch():
+    """回归: 弱发射未能出通道、球回落发射杆后, 必须能重新蓄力发射。"""
+    m = T.build_table()
+    g = R.Game()
+    g.state = "ready"
+    b = m.world.add_ball(T.spawn_position())
+    dt = 1.0 / 60.0
+    for _ in range(180):                     # 球落上发射杆并被锁住
+        for e in m.world.advance(dt):
+            g.handle(e, m)
+    assert g.plunger_ball is b and b.held
+
+    bb = g.launch()                          # 最小力度弱发射
+    bb.vel = P.Vec2(0, C.PLUNGER_VMIN)
+    assert g.state == "play"
+
+    retrigger = False                        # 球升不上去, 回落
+    for _ in range(240):
+        for e in m.world.advance(dt):
+            g.handle(e, m)
+            if e[0] == "plunger":
+                retrigger = True
+        if retrigger and b.held:
+            break
+    assert retrigger and b.held, "弱发射回落后应重新触发发射杆事件并锁球"
+    assert g.state == "ready", "回落后必须回到 ready, 否则无法再蓄力(卡死bug)"
+
+    bb = g.launch()                          # 再次发射应可行
+    bb.vel = P.Vec2(0, C.PLUNGER_VMAX)
+    assert g.state == "play" and not bb.held
+
+
 def test_ball_settles_on_floor():
     m = T.build_table()
     m.world.add_ball((0.30, 0.40))
