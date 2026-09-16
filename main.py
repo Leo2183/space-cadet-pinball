@@ -381,12 +381,12 @@ toast_text = Text("", parent=hud, position=(0, 0.10), origin=(0, 0), scale=2.2,
 toast_sub = Text("", parent=hud, position=(0, 0.05), origin=(0, 0), scale=1.0,
                  color=color.rgb(200, 220, 255), enabled=False)
 
-overlay = Entity(parent=hud, model="cube", scale=(2, 1.2, 1),
-                 texture=tex_color((8, 10, 22)), enabled=False, z=0.05)
-overlay_title = Text("", parent=hud, position=(0, 0.22), origin=(0, 0), scale=2.6,
-                     color=color.rgb(255, 230, 140), enabled=False, z=0.06)
+# 注意: Text 传 z 参数会导致其不渲染(本版 Ursina 的坑), 切勿给 Text 设 z;
+# 且全屏背景方块会盖住所有 HUD 文字, 故结束/帮助/暂停画面只用文字悬浮显示。
+overlay_title = Text("", parent=hud, position=(0, 0.16), origin=(0, 0), scale=2.6,
+                     color=color.rgb(255, 230, 140), enabled=False)
 overlay_body = Text("", parent=hud, position=(0, 0.0), origin=(0, 0), scale=1.05,
-                    color=color.rgb(190, 205, 235), enabled=False, z=0.06)
+                    color=color.rgb(190, 205, 235), enabled=False)
 
 HELP_LINES = ("操作说明\n\n"
               "Z 或 ←          左弹板\n"
@@ -469,22 +469,22 @@ def save_hiscore():
         pass
 
 
-def set_overlay(title, body, col=(255, 230, 140)):
-    overlay.enabled = overlay_title.enabled = overlay_body.enabled = True
+def set_overlay(title, body):
+    # 注意: 事后给 Text 赋 .color 会走 colorScale(本版失效变白), 颜色一律在构造时定死
+    overlay_title.enabled = overlay_body.enabled = True
     overlay_title.text = title
-    overlay_title.color = color.rgb(*col)
     overlay_body.text = body
 
 
 def hide_overlay():
-    overlay.enabled = overlay_title.enabled = overlay_body.enabled = False
+    overlay_title.enabled = overlay_body.enabled = False
 
 
 def show_gameover():
     if game.score > game.hiscore:
         game.hiscore = game.score
         save_hiscore()
-    body = ("最终得分  %s\n%s  %s\n\n按 F2 重新开始" %
+    body = ("最终得分  %s\n%s  %s\n\n按 F2 / 回车 重新开始" %
             (R.fmt(game.score), game.rank_name()[0], game.rank_name()[1]))
     if game.score >= game.hiscore and game.score > 0:
         body += "\n★ 新纪录!"
@@ -685,8 +685,19 @@ def smoke_update(dt):
             held_keys["slash"] = 1
         if random.random() < 0.10:
             held_keys["z"] = held_keys["slash"] = 0
+    # 阶段4: 强制游戏结束, 验证结束画面(黑屏回归)
+    if 4.5 < t <= 4.6 and smoke["phase"] == 3:
+        smoke["phase"] = 4
+        game.state = "play"
+        game.balls_in_play = 1
+        game.ball_num = game.total_balls
+        for b in list(world.balls):
+            game.handle(("drain", b), meta)
+            world.remove_ball(b)
+        print("[smoke] forced gameover state=%s overlay_title=%s" %
+              (game.state, overlay_title.enabled))
     for ts, name in [(2.0, "smoke_weak.png"), (4.2, "smoke_play.png"),
-                     (5.6, "smoke_play2.png")]:
+                     (5.4, "smoke_over.png")]:
         if t >= ts and name not in SMOKE_SHOTS:
             SMOKE_SHOTS.append(name)
             try:
@@ -697,7 +708,7 @@ def smoke_update(dt):
                 print("[smoke] saved", os.path.join(HERE, name))
             except Exception as e:
                 print("[smoke] screenshot failed:", e)
-    if t > 6.8:
+    if t > 6.6:
         smoke["done"] = True
         print("[smoke] score=%s rank=%s balls=%d" %
               (game.score, game.rank_name()[0], len(world.balls)))
@@ -709,10 +720,13 @@ def input(key):
     if key == "f2":
         new_game()
         return
+    if game.state == "gameover" and key in ("enter", "space", "return"):
+        new_game()
+        return
     if key == "f1":
         help_open[0] = not help_open[0]
         if help_open[0]:
-            set_overlay("帮助", HELP_LINES, (160, 230, 255))
+            set_overlay("帮助", HELP_LINES)
         elif game.state == "gameover":
             show_gameover()
         else:
@@ -721,9 +735,9 @@ def input(key):
     if key == "p" and game.state != "gameover":
         paused[0] = not paused[0]
         if paused[0]:
-            set_overlay("暂停", "按 P 继续", (200, 220, 255))
+            set_overlay("暂停", "按 P 继续")
         elif help_open[0]:
-            set_overlay("帮助", HELP_LINES, (160, 230, 255))
+            set_overlay("帮助", HELP_LINES)
         else:
             hide_overlay()
         return
