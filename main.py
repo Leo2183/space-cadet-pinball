@@ -141,9 +141,11 @@ except Exception:
     pass
 if hasattr(window, "fps_counter") and window.fps_counter:
     window.fps_counter.enabled = False
-camera.fov = 50
-camera.position = (0.30, 0.90, -0.92)
-camera.look_at(Vec3(0.30, 0.02, 0.50))
+# 纯 2D 俯视: 正交投影, 镜头从正上方直射台面中心, 屏幕上方 = 台顶
+camera.orthographic = True
+camera.fov = 1.42               # 正交模式下为竖直视野(世界单位), 约等于整张球台
+camera.position = (0.30, 1.2, 0.575)
+camera.rotation = (90, 0, 0)
 
 CYL_SEGS = 20
 
@@ -351,14 +353,14 @@ rank_text = Text("", parent=hud, position=(0.62, 0.40), origin=(0.5, 0.5),
                  scale=1.25, color=color.rgb(255, 200, 90))
 ball_text = Text("", parent=hud, position=(0.62, 0.355), origin=(0.5, 0.5),
                  scale=1.0, color=color.rgb(160, 170, 195))
-mission_text = Text("", parent=hud, position=(0, 0.30), origin=(0, 0), scale=1.2,
+mission_text = Text("", parent=hud, position=(0, 0.40), origin=(0, 0), scale=1.2,
                     color=color.rgb(255, 240, 170))
-mission_sub = Text("", parent=hud, position=(0, 0.262), origin=(0, 0), scale=0.9,
+mission_sub = Text("", parent=hud, position=(0, 0.365), origin=(0, 0), scale=0.9,
                    color=color.rgb(170, 190, 220))
 fuel_bar_bg = Entity(parent=hud, model="cube", scale=(0.28, 0.012, 1),
-                     position=(0, 0.228), texture=tex_color((40, 50, 70)))
+                     position=(0, 0.335), texture=tex_color((40, 50, 70)))
 fuel_bar = Entity(parent=hud, model="cube", scale=(0.28, 0.009, 1),
-                  position=(-0.14, 0.228), origin=(-0.5, 0), texture=tex_color(GREEN))
+                  position=(-0.14, 0.335), origin=(-0.5, 0), texture=tex_color(GREEN))
 hyper_dots = [Entity(parent=hud, model="circle", scale=0.018,
                      position=(-0.55 + i * 0.03, -0.42), texture=tex_color(DIM))
               for i in range(5)]
