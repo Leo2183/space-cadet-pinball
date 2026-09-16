@@ -96,7 +96,10 @@ python tests/test_physics.py     # 17/17 通过: 发射/弹板/单向门/虫洞/
    一个使用者 `reparent` 抢走——每个实体必须独立实例化;
 3. 内置模型没有 `sphere`/`cylinder`,需用 `icosphere` 与
    `ursina.models.procedural.cylinder.Cylinder`;
-4. 截图用相对路径 `base.win.saveScreenshot(name)`(绝对路径会静默失败)。
+4. 截图用相对路径 `base.win.saveScreenshot(name)`(绝对路径会静默失败);
+5. `Vec3(x, y)` 两参构造语义异常(得到 `(x, x, y)`), 构造向量必须传满三个分量;
+6. `Text` 的颜色通道失效(恒白), 文字上色需用 PIL 渲染贴图(HUD 的 Label 方案);
+   带透明通道的贴图会进透明渲染队列、被 3D 场景盖住, 文字贴图用不透明深色底。
 
 ## 版权与免责声明
 
