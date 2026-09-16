@@ -147,13 +147,38 @@ camera.fov = 1.42               # 正交模式下为竖直视野(世界单位), 
 camera.position = (0.30, 1.2, 0.575)
 camera.rotation = (90, 0, 0)
 
-CYL_SEGS = 20
+CYL_SEGS = 36
 
 
 def cyl():
     """每次新建圆柱网格。注意: Mesh 是 NodePath, 共享实例会被最后一个
     使用者 reparent 抢走, 之前的实体将丢失几何体, 必须逐实体实例化。"""
     return Cylinder(resolution=CYL_SEGS)
+
+
+def make_sphere(u=24, v=16):
+    """高精度 UV 球网格(平滑法线), 替代低模 icosphere。
+    注意与 cyl() 同理: 每个实体必须独立调用生成, 不可共享。"""
+    verts, tris, norms, uvs = [], [], [], []
+    for i in range(v + 1):
+        theta = math.pi * i / v
+        for j in range(u):
+            phi = 2 * math.pi * j / u
+            x, y, z = (math.sin(theta) * math.cos(phi),
+                       math.cos(theta),
+                       math.sin(theta) * math.sin(phi))
+            verts.append(Vec3(x * 0.5, y * 0.5, z * 0.5))
+            norms.append(Vec3(x, y, z))
+            uvs.append((j / u, i / v))
+    for i in range(v):
+        for j in range(u):
+            a = i * u + j
+            b = i * u + (j + 1) % u
+            c = (i + 1) * u + (j + 1) % u
+            d = (i + 1) * u + j
+            tris.extend(((a, b, c), (a, c, d)))
+    return Mesh(vertices=verts, triangles=tris, normals=norms, uvs=uvs,
+                mode="triangle")
 
 table_root = Entity()
 meta = T.build_table()
@@ -267,10 +292,10 @@ def make_flipper(fl):
     Entity(parent=root, model="cube", scale=(C.FLIPPER_LEN, 0.021, 0.023),
            position=(C.FLIPPER_LEN / 2, 0, 0), texture=tex_color((216, 222, 234)),
            shader=lit_with_shadows_shader)
-    Entity(parent=root, model="icosphere",
+    Entity(parent=root, model=make_sphere(18, 12),
            scale=(C.FLIPPER_R0 * 2, 0.024, C.FLIPPER_R0 * 2),
            texture=tex_color((196, 204, 220)), shader=lit_with_shadows_shader)
-    Entity(parent=root, model="icosphere", position=(C.FLIPPER_LEN, 0, 0),
+    Entity(parent=root, model=make_sphere(18, 12), position=(C.FLIPPER_LEN, 0, 0),
            scale=(C.FLIPPER_R1 * 2.4, 0.021, C.FLIPPER_R1 * 2.4),
            texture=tex_color(ORANGE), shader=lit_with_shadows_shader)
     return root
@@ -317,7 +342,7 @@ trails = {}
 
 
 def ball_entity():
-    return Entity(parent=table_root, model="icosphere",
+    return Entity(parent=table_root, model=make_sphere(26, 17),
                   scale=(0.0285, 0.0285, 0.0285),
                   texture=tex_color((228, 231, 238)),
                   shader=lit_with_shadows_shader)
