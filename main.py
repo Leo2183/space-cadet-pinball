@@ -369,23 +369,82 @@ def drop_ball_ent(bid):
 
 
 # ---------------------------------------------------------------- HUD
+# 本版 Ursina 的 Text 颜色通道失效(渲染恒白), 文字一律用 PIL 渲染成
+# 彩色贴图(带透明通道)贴在 quad 上, 颜色完全可控。
+from PIL import ImageDraw, ImageFont
+
+FONT_PATH = os.path.join(HERE, "simhei.ttf")
+_label_cache = {}
+
+
+def label_texture(text, rgb, px=64):
+    key = (text, rgb, px)
+    if key in _label_cache:
+        return _label_cache[key]
+    font = ImageFont.truetype(FONT_PATH, px)
+    measure = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
+    box = measure.textbbox((0, 0), text, font=font)
+    w, h = max(1, box[2] - box[0]), max(1, box[3] - box[1])
+    # 不透明深色底: 透明贴图会进透明渲染队列被 3D 墙体盖住,
+    # 不透明则与普通实体同队列, 配合 setBin 画在场景之上
+    img = Image.new("RGBA", (w + 16, h + 16), (8, 10, 22, 255))
+    ImageDraw.Draw(img).text((8 - box[0], 8 - box[1]), text, font=font,
+                             fill=tuple(rgb) + (255,))
+    tex = Texture(img)
+    _label_cache[key] = (tex, w + 16, h + 16)
+    return _label_cache[key]
+
+
+class Label:
+    """贴图文字标签。height 为单行高度(UI 单位), 多行文本自动按行数增高。"""
+
+    def __init__(self, parent, pos, height=0.03, rgb=(255, 255, 255), px=64,
+                 pivot="center"):
+        self.base_pos = Vec3(pos[0], pos[1], 0)   # 注意: Vec3 两参构造语义异常, 必须传满 3 个
+        self.height, self.px, self.pivot = height, px, pivot
+        self.rgb = rgb
+        self.e = Entity(parent=parent, model="quad", position=self.base_pos,
+                        enabled=False)
+
+    def set(self, text, rgb=None):
+        if rgb is not None:
+            self.rgb = rgb
+        if not text:
+            self.e.enabled = False
+            return
+        tex, w, h = label_texture(text, self.rgb, self.px)
+        n_lines = text.count("\n") + 1
+        sy = self.height * n_lines
+        sx = sy * w / h
+        self.e.texture = tex
+        self.e.scale = Vec3(sx, sy, 1)
+        x = self.base_pos.x
+        if self.pivot == "left":
+            x += sx / 2
+        elif self.pivot == "right":
+            x -= sx / 2
+        self.e.position = Vec3(x, self.base_pos.y, 0)
+        self.e.enabled = True
+
+
 hud = Entity(parent=camera.ui)
-Text("SPACE CADET · 太空军校生", parent=hud, position=(0, 0.475), origin=(0, 0.5),
-     scale=1.5, color=color.rgb(150, 215, 250))
-score_text = Text("得分  0", parent=hud, position=(-0.62, 0.40), origin=(-0.5, 0.5),
-                  scale=1.7, color=color.rgb(120, 235, 255))
-hi_text = Text("", parent=hud, position=(-0.62, 0.355), origin=(-0.5, 0.5),
-               scale=1.0, color=color.rgb(140, 150, 180))
-mult_text = Text("", parent=hud, position=(-0.62, 0.315), origin=(-0.5, 0.5),
-                 scale=1.15, color=color.rgb(255, 200, 60))
-rank_text = Text("", parent=hud, position=(0.62, 0.40), origin=(0.5, 0.5),
-                 scale=1.25, color=color.rgb(255, 200, 90))
-ball_text = Text("", parent=hud, position=(0.62, 0.355), origin=(0.5, 0.5),
-                 scale=1.0, color=color.rgb(160, 170, 195))
-mission_text = Text("", parent=hud, position=(0, 0.40), origin=(0, 0), scale=1.2,
-                    color=color.rgb(255, 240, 170))
-mission_sub = Text("", parent=hud, position=(0, 0.365), origin=(0, 0), scale=0.9,
-                   color=color.rgb(170, 190, 220))
+# 让 HUD(文字贴图/指示灯/油量条)绘制在 3D 场景之上:
+# quad 贴图默认会被台面霓虹等 3D 元素盖住, 固定渲染序+关深度测试可根治
+try:
+    hud.setBin("fixed", 10)
+    hud.setDepthTest(False)
+    hud.setDepthWrite(False)
+except Exception:
+    pass
+title_l = Label(hud, (0, 0.475), 0.040, (150, 215, 250), px=80)
+title_l.set("SPACE CADET · 太空军校生")
+score_l = Label(hud, (-0.62, 0.40), 0.043, (120, 235, 255), pivot="left")
+hi_l = Label(hud, (-0.62, 0.355), 0.026, (140, 150, 180), pivot="left")
+mult_l = Label(hud, (-0.62, 0.315), 0.030, (255, 200, 60), pivot="left")
+rank_l = Label(hud, (0.62, 0.40), 0.032, (255, 200, 90), pivot="right")
+ball_l = Label(hud, (0.62, 0.355), 0.026, (160, 170, 195), pivot="right")
+mission_l = Label(hud, (0, 0.40), 0.030, (255, 240, 170))
+mission_sub_l = Label(hud, (0, 0.365), 0.023, (170, 190, 220))
 fuel_bar_bg = Entity(parent=hud, model="cube", scale=(0.28, 0.012, 1),
                      position=(0, 0.335), texture=tex_color((40, 50, 70)))
 fuel_bar = Entity(parent=hud, model="cube", scale=(0.28, 0.009, 1),
@@ -393,31 +452,22 @@ fuel_bar = Entity(parent=hud, model="cube", scale=(0.28, 0.009, 1),
 hyper_dots = [Entity(parent=hud, model="circle", scale=0.018,
                      position=(-0.55 + i * 0.03, -0.42), texture=tex_color(DIM))
               for i in range(5)]
-Text("超空间", parent=hud, position=(-0.64, -0.412), origin=(0, 0), scale=0.9,
-     color=color.rgb(120, 210, 240))
+Label(hud, (-0.64, -0.412), 0.023, (120, 210, 240)).set("超空间")
 medal_dot = Entity(parent=hud, model="circle", scale=0.018, position=(-0.34, -0.42),
                    texture=tex_color(DIM))
-Text("奖章", parent=hud, position=(-0.43, -0.412), origin=(0, 0), scale=0.9,
-     color=color.rgb(255, 210, 90))
+Label(hud, (-0.43, -0.412), 0.023, (255, 210, 90)).set("奖章")
 kicker_dot = Entity(parent=hud, model="circle", scale=0.018, position=(-0.16, -0.42),
                     texture=tex_color(DIM))
-Text("救援", parent=hud, position=(-0.25, -0.412), origin=(0, 0), scale=0.9,
-     color=color.rgb(255, 220, 80))
-Text("Z/← 左弹板   /或→ 右弹板   空格蓄力发射   X . ↑ 推台   F1 帮助",
-     parent=hud, position=(0, -0.475), origin=(0, 0), scale=0.8,
-     color=color.rgb(110, 120, 150))
+Label(hud, (-0.25, -0.412), 0.023, (255, 220, 80)).set("救援")
+Label(hud, (0, -0.475), 0.021, (110, 120, 150)).set(
+    "Z/← 左弹板   /或→ 右弹板   空格蓄力发射   X . ↑ 推台   F1 帮助")
 
-toast_text = Text("", parent=hud, position=(0, 0.10), origin=(0, 0), scale=2.2,
-                  color=color.rgb(255, 255, 255), enabled=False)
-toast_sub = Text("", parent=hud, position=(0, 0.05), origin=(0, 0), scale=1.0,
-                 color=color.rgb(200, 220, 255), enabled=False)
+toast_l = Label(hud, (0, 0.10), 0.055, (255, 255, 255), px=96)
+toast_sub_l = Label(hud, (0, 0.05), 0.026, (200, 220, 255))
 
-# 注意: Text 传 z 参数会导致其不渲染(本版 Ursina 的坑), 切勿给 Text 设 z;
-# 且全屏背景方块会盖住所有 HUD 文字, 故结束/帮助/暂停画面只用文字悬浮显示。
-overlay_title = Text("", parent=hud, position=(0, 0.16), origin=(0, 0), scale=2.6,
-                     color=color.rgb(255, 230, 140), enabled=False)
-overlay_body = Text("", parent=hud, position=(0, 0.0), origin=(0, 0), scale=1.05,
-                    color=color.rgb(190, 205, 235), enabled=False)
+# 结束/帮助/暂停画面: 纯文字悬浮(全屏背景方块会盖住 HUD, 不可用)
+overlay_title_l = Label(hud, (0, 0.16), 0.065, (255, 230, 140), px=96)
+overlay_body_l = Label(hud, (0, 0.0), 0.026, (190, 205, 235))
 
 HELP_LINES = ("操作说明\n\n"
               "Z 或 ←          左弹板\n"
@@ -433,16 +483,14 @@ HELP_LINES = ("操作说明\n\n"
               "F1 关闭    F2 新游戏    P 暂停    Esc 退出")
 
 toast_state = {"t": 0.0, "showing": False}
-TOAST_COLORS = {"info": color.rgb(200, 230, 255), "good": color.rgb(130, 255, 170),
-                "warn": color.rgb(255, 130, 130), "rank": color.rgb(255, 215, 110),
-                "mission": color.rgb(170, 220, 255)}
+TOAST_RGB = {"info": (200, 230, 255), "good": (130, 255, 170),
+             "warn": (255, 130, 130), "rank": (255, 215, 110),
+             "mission": (170, 220, 255)}
 
 
 def show_toast(text, sub, kind):
-    toast_text.text = text
-    toast_text.color = TOAST_COLORS.get(kind, color.white)
-    toast_sub.text = sub
-    toast_text.enabled = toast_sub.enabled = True
+    toast_l.set(text, rgb=TOAST_RGB.get(kind, (255, 255, 255)))
+    toast_sub_l.set(sub)
     toast_state["t"] = 2.4
     toast_state["showing"] = True
 
@@ -465,10 +513,8 @@ def on_rules_event(name, payload):
             e.texture = tex_color(WHITE)
         invoke(reset_medal_visuals, delay=0.3)
     elif name == "tilt":
-        toast_text.text = "TILT!"
-        toast_text.color = color.rgb(255, 70, 70)
-        toast_sub.text = "弹板失效直至丢球"
-        toast_text.enabled = toast_sub.enabled = True
+        toast_l.set("TILT!", rgb=(255, 70, 70))
+        toast_sub_l.set("弹板失效直至丢球")
         toast_state["t"] = 3.0
         toast_state["showing"] = True
     elif name == "gameover":
@@ -502,13 +548,13 @@ def save_hiscore():
 
 def set_overlay(title, body):
     # 注意: 事后给 Text 赋 .color 会走 colorScale(本版失效变白), 颜色一律在构造时定死
-    overlay_title.enabled = overlay_body.enabled = True
-    overlay_title.text = title
-    overlay_body.text = body
+    overlay_title_l.set(title)
+    overlay_body_l.set(body)
 
 
 def hide_overlay():
-    overlay_title.enabled = overlay_body.enabled = False
+    overlay_title_l.set("")
+    overlay_body_l.set("")
 
 
 def show_gameover():
@@ -516,7 +562,8 @@ def show_gameover():
         game.hiscore = game.score
         save_hiscore()
     # 清掉可能残留的 toast(如"任务中止"), 避免与结束画面文字重叠
-    toast_text.enabled = toast_sub.enabled = False
+    toast_l.set("")
+    toast_sub_l.set("")
     toast_state["showing"] = False
     body = ("最终得分  %s\n%s  %s\n\n按 F2 / 回车 重新开始" %
             (R.fmt(game.score), game.rank_name()[0], game.rank_name()[1]))
@@ -659,7 +706,8 @@ def update():
         toast_state["t"] -= dt
         if toast_state["t"] <= 0:
             toast_state["showing"] = False
-            toast_text.enabled = toast_sub.enabled = False
+            toast_l.set("")
+            toast_sub_l.set("")
 
     smoke_update(dt)
 
@@ -670,24 +718,24 @@ def _reset_medals_later():
 
 
 def update_hud():
-    score_text.text = "得分  %s" % R.fmt(game.score)
-    hi_text.text = "最高  %s" % R.fmt(max(game.hiscore, game.score))
-    mult_text.text = "倍率 ×%d%s" % (
-        game.multiplier, "  重力×2" if game.gravity_time > 0 else "")
-    rank_text.text = "%s %s" % game.rank_name()
-    ball_text.text = "球 %d/%d   任务 %d/%s" % (
+    score_l.set("得分  %s" % R.fmt(game.score))
+    hi_l.set("最高  %s" % R.fmt(max(game.hiscore, game.score)))
+    mult_l.set("倍率 ×%d%s" % (
+        game.multiplier, "  重力×2" if game.gravity_time > 0 else ""))
+    rank_l.set("%s %s" % game.rank_name())
+    ball_l.set("球 %d/%d   任务 %d/%s" % (
         game.ball_num, game.total_balls, game.rank_done,
-        R.MISSIONS_NEEDED[game.rank] if game.rank < len(R.MISSIONS_NEEDED) else "—")
+        R.MISSIONS_NEEDED[game.rank] if game.rank < len(R.MISSIONS_NEEDED) else "—"))
     if game.mission:
-        mission_text.text = "任务  %s  (%d/%d)" % (
-            game.mission["name"], game.mission_progress, game.mission["prog"])
-        mission_sub.text = game.mission["obj"]
+        mission_l.set("任务  %s  (%d/%d)" % (
+            game.mission["name"], game.mission_progress, game.mission["prog"]))
+        mission_sub_l.set(game.mission["obj"])
         fuel_bar.scale_x = 0.28 * max(0.0, min(1.0, game.fuel / 60.0))
         fuel_bar.texture = tex_color(GREEN if game.fuel > 15 else RED)
         fuel_bar_bg.enabled = fuel_bar.enabled = True
     else:
-        mission_text.text = "击中任务靶以开启任务" if game.state == "play" else ""
-        mission_sub.text = ""
+        mission_l.set("击中任务靶以开启任务" if game.state == "play" else "")
+        mission_sub_l.set("")
         fuel_bar_bg.enabled = fuel_bar.enabled = False
     for i, d in enumerate(hyper_dots):
         d.texture = tex_color(CYAN if i < game.hyper_lights else DIM)
@@ -735,8 +783,8 @@ def smoke_update(dt):
         for b in list(world.balls):
             game.handle(("drain", b), meta)
             world.remove_ball(b)
-        print("[smoke] forced gameover state=%s overlay_title=%s" %
-              (game.state, overlay_title.enabled))
+        print("[smoke] forced gameover state=%s overlay=%s" %
+              (game.state, overlay_title_l.e.enabled))
     for ts, name in [(2.0, "smoke_weak.png"), (4.2, "smoke_play.png"),
                      (5.4, "smoke_over.png")]:
         if t >= ts and name not in SMOKE_SHOTS:
