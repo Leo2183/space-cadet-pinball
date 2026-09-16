@@ -339,6 +339,7 @@ Entity(parent=table_root, model=cyl(), scale=(0.040, 0.004, 0.040),
 # ---- 球与拖尾
 ball_ents = {}
 trails = {}
+trail_prev = {}
 
 
 def ball_entity():
@@ -349,14 +350,17 @@ def ball_entity():
 
 
 def trail_for(bid):
+    # 渐远渐小的淡蓝拖尾(近球大、远球小), 避免等大黑点
     trails[bid] = [Entity(parent=table_root, model="icosphere",
-                          scale=(0.022, 0.022, 0.022),
-                          texture=tex_color((16, 40, 58)), shader=unlit_shader,
+                          scale=(0.016 * (1.0 - i * 0.11),
+                                 0.008, 0.016 * (1.0 - i * 0.11)),
+                          texture=tex_color((40, 96, 132)), shader=unlit_shader,
                           enabled=False)
-                   for _ in range(7)]
+                   for i in range(7)]
 
 
 def drop_ball_ent(bid):
+    trail_prev.pop(bid, None)
     if bid in ball_ents:
         destroy(ball_ents.pop(bid))
     if bid in trails:
@@ -618,14 +622,21 @@ def update():
         ts = trails.get(b.id)
         if ts:
             if not b.held and b.speed() > 1.2:
+                # 拖尾记录上一帧位置(滞后一帧), 且高度低于球心——
+                # 拖尾球绝不与球体重合, 否则透明排序会让深色拖尾
+                # 盖住银球, 球在快速移动时整体发黑
+                ghost = trail_prev.get(b.id, Vec3(b.pos.x, 0.010, b.pos.y))
+                ghost = Vec3(ghost.x, 0.010, ghost.z)
                 for i in range(len(ts) - 1, 0, -1):
                     ts[i].position = ts[i - 1].position
                     ts[i].enabled = True
-                ts[0].position = pos
+                ts[0].position = ghost
                 ts[0].enabled = True
+                trail_prev[b.id] = pos
             else:
                 for t_ in ts:
                     t_.enabled = False
+                trail_prev.pop(b.id, None)
 
     flip_l_ent.rotation_y = -math.degrees(meta.flipper_left.angle)
     flip_r_ent.rotation_y = -math.degrees(meta.flipper_right.angle)
