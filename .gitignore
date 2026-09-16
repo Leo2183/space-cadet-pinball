@@ -4,11 +4,13 @@ __pycache__/
 *.egg-info/
 
 # 运行时产物
-highscore.json          # 本地最高分存档
-smoke_play*.png         # 冒烟测试截图
-screenshot*.png         # 手动截图
+# (本地最高分存档与各类截图)
+highscore.json
+smoke_play*.png
+screenshot*.png
 
-# 自动拷贝的中文字体(启动时从系统字体目录重新拷贝; 微软字体不宜入库)
+# 自动拷贝的中文字体
+# (启动时从系统字体目录重新拷贝; 微软字体不宜入库)
 *.ttf
 *.ttc
 
