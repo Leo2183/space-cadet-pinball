@@ -285,7 +285,8 @@ class Game:
             self.notify("第 %d 球" % self.ball_num, "备用球 %d" % (self.total_balls - self.ball_num), "info")
         else:
             self.state = "gameover"
-            self.notify("游戏结束", "得分 %s" % fmt(self.score), "rank")
+            # 结束画面由渲染层的 overlay 全屏负责; 不再额外弹 toast,
+            # 否则会出现两个"游戏结束"且文字互相重叠
             self._on_event("gameover", None)
 
     def spawn_multiball(self):

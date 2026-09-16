@@ -515,6 +515,9 @@ def show_gameover():
     if game.score > game.hiscore:
         game.hiscore = game.score
         save_hiscore()
+    # 清掉可能残留的 toast(如"任务中止"), 避免与结束画面文字重叠
+    toast_text.enabled = toast_sub.enabled = False
+    toast_state["showing"] = False
     body = ("最终得分  %s\n%s  %s\n\n按 F2 / 回车 重新开始" %
             (R.fmt(game.score), game.rank_name()[0], game.rank_name()[1]))
     if game.score >= game.hiscore and game.score > 0:
